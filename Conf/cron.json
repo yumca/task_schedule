@@ -1,0 +1,12 @@
+[
+  {
+    "TaskKey": "sync_tasks",
+    "TaskType": "PHP",
+    "Expire": "1",
+    "RunTime": "* * * * *",
+    "Script": "D:\\WWW\\BuGu\\points\\index.php task/TaskTest execute",
+    "Param": "",
+    "UniqueTaskId": "task_test"
+  }
+]
+

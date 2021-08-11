@@ -1,0 +1,37 @@
+{
+  "Db": {
+    "DbHost": "",
+    "DbUser": "",
+    "DbPwd": "",
+    "DbPort": 3306,
+    "DbPrefix": ""
+  },
+  "Redis": {
+    "RedisHost": "127.0.0.1",
+    "RedisPort": "6379",
+    "RedisPrefix": "task_",
+    "RedisPwd": "",
+    "RedisDb": 9
+  },
+  "Setting": {
+    "WorkerName": "go_task",
+    "LogFile": "D:\\software\\golang\\src\\task_schedule\\go_task.log",
+    "PidFile": "D:\\software\\golang\\src\\task_schedule\\go_task.pid",
+    "Daemonize": 0
+  },
+  "Worker": {
+    "sync_tasks": {
+      "WorkerType": "sync",
+      "TaskKey": "sync_tasks",
+      "Status": "running"
+    },
+    "async_tasks": {
+      "WorkerType": "async",
+      "TaskKey": "async_tasks",
+      "Status": "running"
+    }
+  },
+  "BinPath": {
+    "PHP": "D:\\phpstudy_pro\\Extensions\\php\\php7.2.9nts\\php.exe"
+  }
+}

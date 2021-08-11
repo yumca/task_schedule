@@ -1,0 +1,91 @@
+#!/bin/bash
+
+### BEGIN INIT INFO
+# processname:          task-server
+# chkconfig:		    - 86 15
+# pidfile               /var/www/task_schedule/logs/swoole/server.pid 
+### END INIT INFO		
+
+php=/usr/local/php72/bin/php
+prog=task-server
+prefix=/data/weblog
+exec_prefix=/var/www/task_schedule
+exec_file=server.php
+
+server_BIN=${exec_prefix}/server.php
+server_PID=${prefix}/logs/task_schedule/server.pid
+lockfile=${prefix}/logs/task_schedule/task-server
+timeout=60
+
+case "$1" in
+    start)
+        echo -n "Starting $prog "
+        cd $exec_prefix && $php ${exec_prefix}/${exec_file}
+
+        if [ "$?" != 0 ] ; then
+            echo "failed"
+        else
+            echo "Starting success" && touch $lockfile
+        fi
+    ;;
+
+    stop)
+        echo -n "Stopping $prog: "
+
+        if [ ! -r $server_PID ] ; then
+            echo "warning, no pid file found "
+            exit 1
+        fi
+
+        pid=`cat $server_PID`
+        kill -15 `cat $server_PID`
+
+        if [ "$?" != 0 ] ; then
+            echo " failed"
+            exit 1
+        else
+            i=0
+            while (($i<=${timeout}))
+            do
+                echo -n "."
+                    process=`ps -p ${pid}`;
+                    if [ $? -eq 0 ]; then
+                        i=`expr $i + 1`
+                        sleep 1
+                    else
+                        break
+                    fi
+            done
+            echo "Stopping success" && rm -f $lockfile
+        fi
+    ;;
+
+    restart)
+        $0 stop
+        $0 start
+    ;;
+
+    status)
+        if [ ! -r $server_PID ] ; then
+            pid_exist=$(ps -ef | grep "$php ${exec_prefix}/${exec_file}" | grep -v grep | awk '{print $2}')
+            if [ ! $pid_exist ];then
+                echo "server(no pid file) is not running "
+            else
+                echo "server(no pid file, server exist) is running "
+            fi
+            exit 1
+        fi
+
+        pid=`cat $server_PID`
+        pid_exist=$(ps aux | awk '{print $2}'| grep -w $pid)
+        if [ ! $pid_exist ];then
+            echo "server(exist pid file, server not exist) is not running "
+        else
+            echo "server($pid) is running "
+        fi
+    ;;
+
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+    ;;
+esac
