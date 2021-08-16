@@ -7,6 +7,7 @@
     "DbPrefix": ""
   },
   "Redis": {
+    "Stat": "off",
     "RedisHost": "127.0.0.1",
     "RedisPort": "6379",
     "RedisPrefix": "task_",

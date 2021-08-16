@@ -1,5 +1,6 @@
 [
   {
+    "CronTask": true,
     "TaskKey": "sync_tasks",
     "TaskType": "PHP",
     "Expire": "1",
@@ -9,4 +10,3 @@
     "UniqueTaskId": "task_test"
   }
 ]
-
