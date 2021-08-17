@@ -32,17 +32,17 @@ type ExecOutput struct {
 }
 
 type ServFunc struct {
-	SysRun         string
-	AsyncRun       int
-	RunWorker      map[string]string
-	RunWorkerNum   int
-	WorkerStat     map[string]WorkerStat
-	WorkerChan     map[string]chan Command
-	WorkerChanData map[string][]Command
-	Config         Config
-	RdbWorkerKey   string
-	rdb            *redis.Client
-	MyLog          *MyLogs
+	SysRun       string
+	AsyncRun     int
+	RunWorker    map[string]string
+	RunWorkerNum int
+	WorkerStat   map[string]WorkerStat
+	WorkerChan   map[string]chan Command
+	// WorkerChanData map[string]map[string]Command
+	Config       Config
+	RdbWorkerKey string
+	rdb          *redis.Client
+	MyLog        *MyLogs
 }
 
 func NewServFunc(conf Config) (Serv *ServFunc, err error) {
@@ -51,7 +51,7 @@ func NewServFunc(conf Config) (Serv *ServFunc, err error) {
 	if conf.Redis.Stat == "on" {
 		rdb, err := Rdlink()
 		if err == nil {
-			Serv.RdbWorkerKey = conf.Redis.RedisPrefix + conf.Setting.WorkerName + "Task:Worker"
+			Serv.RdbWorkerKey = conf.Redis.RedisPrefix + conf.Setting.WorkerName + ":Worker"
 			Serv.rdb = rdb
 		}
 	}
@@ -74,15 +74,7 @@ func (s *ServFunc) Start() error {
 	//初始化运行的worker通道
 	s.WorkerChan = make(map[string]chan Command)
 	//初始化运行的worker执行列表状态
-	s.WorkerChanData = make(map[string][]Command)
-	//清除非配置中的Worker
-	// keys := s.rdb.Keys(ctx, s.WorkerKey+":*")
-	// for _, v := range keys.Val() {
-	// 	tmp := strings.Split(v, ":")
-	// 	if _, ok := s.Config.Worker[tmp[2]]; !ok {
-	// 		s.rdb.Del(ctx, s.WorkerKey+":"+tmp[2])
-	// 	}
-	// }
+	// s.WorkerChanData = make(map[string]map[string]Command)
 	//开启日志插件
 	mylog, err := NewMyLogs("logs", "task_schedule", "", nil)
 	if err != nil {
@@ -91,11 +83,24 @@ func (s *ServFunc) Start() error {
 	s.MyLog = mylog
 	//开启定时协程
 	go s.tick()
+	//清除非配置中的Worker
+	if s.Config.Redis.Stat == "on" {
+		keys := s.rdb.Keys(ctx, s.RdbWorkerKey+":*")
+		for _, v := range keys.Val() {
+			tmp := strings.Split(v, ":")
+			if _, ok := s.Config.Worker[tmp[2]]; !ok {
+				s.rdb.Del(ctx, s.RdbWorkerKey+":"+tmp[2])
+			}
+		}
+	}
 	//添加任务协程状态数据
 	for _, v := range s.Config.Worker {
-		// s.rdb.HSet(ctx, s.WorkerKey+":"+v.TaskKey, "task_key", v.TaskKey)
-		// s.rdb.HSet(ctx, s.WorkerKey+":"+v.TaskKey, "run_time", time.Unix(time.Now().Unix(), 0).Format("2006-01-02 15:04:05"))
-		// s.rdb.HSet(ctx, s.WorkerKey+":"+v.TaskKey, "status", v.Status)
+		if s.Config.Redis.Stat == "on" {
+			s.rdb.HSet(ctx, s.RdbWorkerKey+":"+v.TaskKey, "TaskKey", v.TaskKey)
+			s.rdb.HSet(ctx, s.RdbWorkerKey+":"+v.TaskKey, "Runtime", time.Unix(time.Now().Unix(), 0).Format("2006-01-02 15:04:05"))
+			s.rdb.HSet(ctx, s.RdbWorkerKey+":"+v.TaskKey, "Status", v.Status)
+			s.rdb.HSet(ctx, s.RdbWorkerKey+":"+v.TaskKey, "WorkerType", v.WorkerType)
+		}
 		if v.Status == "running" {
 			//开启任务协程
 			if v.WorkerType == "sync" {
@@ -139,7 +144,7 @@ func (s *ServFunc) sync(Worker WorkerInfo) {
 
 //异步任务协程
 func (s *ServFunc) async(Worker WorkerInfo) {
-	fmt.Printf("异步任务协程：taskKey-%v开始;\n", Worker.TaskKey)
+	fmt.Printf("异步任务协程：taskKey-%s开始;\n", Worker.TaskKey)
 	s.RunWorkerNum++
 	s.RunWorker[Worker.TaskKey] = "running"
 	s.WorkerStat[Worker.TaskKey] = WorkerStat{
@@ -154,7 +159,7 @@ func (s *ServFunc) async(Worker WorkerInfo) {
 			go s.doasync(c)
 		}
 	}
-	fmt.Printf("异步任务协程：taskKey-%v退出;\n", Worker.TaskKey)
+	fmt.Printf("异步任务协程：taskKey-%s退出;\n", Worker.TaskKey)
 	s.RunWorkerNum--
 	s.RunWorker[Worker.TaskKey] = "stop"
 }
@@ -239,6 +244,10 @@ func (s ServFunc) execTaskCommand(taskCommand Command) (output ExecOutput, err e
 		StartRuntime: startRuntime,
 		Output:       string(execoutput),
 	}
+	//成功则删除命令数据
+	if s.Config.Redis.Stat == "on" {
+		s.rdb.HDel(ctx, taskCommand.TaskKey+"_command", taskCommand.UniqueTaskId)
+	}
 	return
 }
 
@@ -273,10 +282,22 @@ func (s *ServFunc) tick() {
 						TaskKey:      cronv.TaskKey,
 						TaskType:     cronv.TaskType,
 						Expire:       cronv.Expire,
-						RunTime:      cronv.RunTime,
+						RunTime:      time.Unix(time.Now().Unix(), 0).Format("2006-01-02 15:04:05"),
 						Script:       cronv.Script,
 						Param:        cronv.Param,
 						UniqueTaskId: cronv.UniqueTaskId + s.uniqueTaskId(),
+					}
+					// s.WorkerChanData[cronv.TaskKey][command.UniqueTaskId] = command
+					if s.Config.Redis.Stat == "on" {
+						jsonBytes, err := json.Marshal(command)
+						if err != nil {
+							s.MyLog.DoLogs("缓存定时任务错误,json化失败;", "e", "task", command)
+						} else {
+							tickcmd := s.rdb.HSet(ctx, command.TaskKey+"_command", command.UniqueTaskId, string(jsonBytes))
+							if tickcmd.Val() != 1 || tickcmd.Err() != nil {
+								s.MyLog.DoLogs("缓存定时任务失败;", "e", "task", command)
+							}
+						}
 					}
 					s.WorkerChan[cronv.TaskKey] <- command
 					//fmt.Printf("投递定时任务:taskKey-%v,uniqueTaskId-%v;\n", command["taskKey"], command["uniqueTaskId"])
@@ -341,15 +362,41 @@ func (s ServFunc) tickCheck(runTime string, limitTime []int) (r bool) {
 	return
 }
 
+/**
+ * 关闭通道
+ */
+func (s *ServFunc) stop() {
+	fmt.Println("等待关闭队列通道")
+	for k, v := range s.WorkerChan {
+		i := 0
+		for {
+			if len(v) < 1 {
+				break
+			}
+			if i > 60 {
+				break
+			}
+			time.Sleep(time.Millisecond * 500)
+			i++
+		}
+		close(v)
+		fmt.Printf("队列通道%s已关闭;\n", k)
+	}
+	fmt.Println("队列通道已全部关闭;")
+}
+
 func (s *ServFunc) ExitServ() {
 	fmt.Println("开始结束程序...")
 	//更新系统运行状态
 	s.SysRun = "stop"
-	//更新任务协程状态数据
-	// for _, v := range s.Config.Worker {
-	// s.WorkerStat[v.TaskKey].Status = "stop"
-	// s.rdb.HSet(ctx, s.WorkerKey+":"+v.TaskKey, "status", "stop")
-	// }
+	//关闭携程通道
+	s.stop()
+	//更新redis任务协程状态数据
+	if s.Config.Redis.Stat == "on" {
+		for _, v := range s.Config.Worker {
+			s.rdb.HSet(ctx, s.RdbWorkerKey+":"+v.TaskKey, "Status", "stop")
+		}
+	}
 	//关闭日志通道
 	s.MyLog.stop()
 	sec := 0

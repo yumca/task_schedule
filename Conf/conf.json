@@ -15,7 +15,7 @@
     "RedisDb": 9
   },
   "Setting": {
-    "WorkerName": "go_task",
+    "WorkerName": "GoTask",
     "LogFile": "D:\\software\\golang\\src\\task_schedule\\go_task.log",
     "PidFile": "D:\\software\\golang\\src\\task_schedule\\go_task.pid",
     "Daemonize": 0
