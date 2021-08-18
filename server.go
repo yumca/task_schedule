@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"golang.org/x/net/websocket"
 	"log"
 	"os"
 	"os/exec"
@@ -13,6 +12,8 @@ import (
 	"syscall"
 	"task_schedule/Library"
 	"time"
+
+	"golang.org/x/net/websocket"
 )
 
 type err error
@@ -34,10 +35,22 @@ func main() {
 	}
 	log.SetOutput(logFile)
 	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
-	if os.Getppid() != 1 && conf.Setting.Daemonize == 1 {
+	//获取执行参数并判断
+	Cprocess := false
+	Args := make([]string, len(os.Args))
+	for i := 1; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		//是否为子进程
+		case "-cprocess":
+			Cprocess = true
+		}
+	}
+	//Cprocess为false则表示为父进程  判断是否需要开启后台运行
+	if !Cprocess && conf.Setting.Daemonize == 1 {
+		Args = append(Args, "-cprocess")
 		// 将命令行参数中执行文件路径转换成可用路径
 		filePath, _ := filepath.Abs(os.Args[0])
-		cmd := exec.Command(filePath, os.Args[1:]...)
+		cmd := exec.Command(filePath, Args...)
 		// 将其他命令传入生成出的进程
 		cmd.Stdin = os.Stdin // 给新进程设置文件描述符，可以重定向到文件中
 		cmd.Stdout = os.Stdout
