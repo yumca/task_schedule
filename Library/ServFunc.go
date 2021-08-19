@@ -92,6 +92,8 @@ func (s *ServFunc) Start() error {
 				s.rdb.Del(ctx, s.RdbWorkerKey+":"+tmp[2])
 			}
 		}
+		//开启getCmdForRdb获取redis队列数据协程
+		go s.getCmdForRdb()
 	}
 	//添加任务协程状态数据
 	for _, v := range s.Config.Worker {
@@ -251,6 +253,34 @@ func (s ServFunc) execTaskCommand(taskCommand Command) (output ExecOutput, err e
 	return
 }
 
+//获取redis队列数据
+func (s *ServFunc) getCmdForRdb() {
+	println("getCmdForRdb start")
+	var taskCommand Command
+	for {
+		//获取队列信息
+		task := s.rdb.BLPop(ctx, time.Second, s.RdbWorkerKey+":CommonList").Val()
+		if len(task) > 1 && task[1] != "" {
+			taskCommand.CronTask = false
+			err := json.Unmarshal([]byte(task[1]), &taskCommand)
+			if err != nil {
+				s.MyLog.DoLogs(fmt.Sprintf("获取redis队列数据协程-json解析command错误：command-%v,err-%v;", task[1], err), "e", "task", nil)
+				continue
+			}
+			if taskCommand.TaskKey == "" {
+				s.MyLog.DoLogs(fmt.Sprintf("获取redis队列数据协程-common缺少必要参数：command-%v;", task[1]), "e", "task", nil)
+				continue
+			}
+			s.WorkerChan[taskCommand.TaskKey] <- taskCommand
+		}
+		if s.SysRun == "running" {
+			continue
+		}
+		break
+	}
+	fmt.Printf("获取redis队列数据协程退出;\n")
+}
+
 //定时任务方法
 func (s *ServFunc) tick() {
 	println("tick start")
@@ -365,7 +395,7 @@ func (s ServFunc) tickCheck(runTime string, limitTime []int) (r bool) {
 /**
  * 关闭通道
  */
-func (s *ServFunc) stop() {
+func (s *ServFunc) stopWorkerChan() {
 	fmt.Println("等待关闭队列通道")
 	for k, v := range s.WorkerChan {
 		i := 0
@@ -390,7 +420,7 @@ func (s *ServFunc) ExitServ() {
 	//更新系统运行状态
 	s.SysRun = "stop"
 	//关闭携程通道
-	s.stop()
+	s.stopWorkerChan()
 	//更新redis任务协程状态数据
 	if s.Config.Redis.Stat == "on" {
 		for _, v := range s.Config.Worker {
