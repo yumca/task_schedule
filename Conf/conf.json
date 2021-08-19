@@ -16,8 +16,8 @@
   },
   "Setting": {
     "WorkerName": "GoTask",
-    "LogFile": "D:\\software\\golang\\src\\task_schedule\\go_task.log",
-    "PidFile": "D:\\software\\golang\\src\\task_schedule\\go_task.pid",
+    "LogFile": "G:\\WWW\\golang\\src\\task_schedule\\go_task.log",
+    "PidFile": "G:\\WWW\\golang\\src\\task_schedule\\go_task.pid",
     "Daemonize": 0
   },
   "Worker": {
@@ -33,6 +33,6 @@
     }
   },
   "BinPath": {
-    "PHP": "D:\\phpstudy_pro\\Extensions\\php\\php7.2.9nts\\php.exe"
+    "PHP": "G:\\phpstudy_pro\\Extensions\\php\\php7.3.4nts\\php.exe"
   }
 }

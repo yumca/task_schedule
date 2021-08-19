@@ -5,7 +5,7 @@
     "TaskType": "PHP",
     "Expire": "1",
     "RunTime": "* * * * *",
-    "Script": "D:\\WWW\\BuGu\\points\\index.php task/TaskTest execute",
+    "Script": "G:\\WWW\\test1.php",
     "Param": "",
     "UniqueTaskId": "task_test"
   }

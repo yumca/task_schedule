@@ -85,13 +85,13 @@ func (s *ServFunc) Start() error {
 	go s.tick()
 	//清除非配置中的Worker
 	if s.Config.Redis.Stat == "on" {
-		keys := s.rdb.Keys(ctx, s.RdbWorkerKey+":*")
-		for _, v := range keys.Val() {
-			tmp := strings.Split(v, ":")
-			if _, ok := s.Config.Worker[tmp[2]]; !ok {
-				s.rdb.Del(ctx, s.RdbWorkerKey+":"+tmp[2])
-			}
-		}
+		// keys := s.rdb.Keys(ctx, s.RdbWorkerKey+":*")
+		// for _, v := range keys.Val() {
+		// 	tmp := strings.Split(v, ":")
+		// 	if _, ok := s.Config.Worker[tmp[2]]; !ok {
+		// 		s.rdb.Del(ctx, s.RdbWorkerKey+":"+tmp[2])
+		// 	}
+		// }
 		//开启getCmdForRdb获取redis队列数据协程
 		go s.getCmdForRdb()
 	}
@@ -259,7 +259,7 @@ func (s *ServFunc) getCmdForRdb() {
 	var taskCommand Command
 	for {
 		//获取队列信息
-		task := s.rdb.BLPop(ctx, time.Second, s.RdbWorkerKey+":CommonList").Val()
+		task := s.rdb.BLPop(ctx, time.Second, s.RdbWorkerKey+":CommandList").Val()
 		if len(task) > 1 && task[1] != "" {
 			taskCommand.CronTask = false
 			err := json.Unmarshal([]byte(task[1]), &taskCommand)
@@ -268,9 +268,10 @@ func (s *ServFunc) getCmdForRdb() {
 				continue
 			}
 			if taskCommand.TaskKey == "" {
-				s.MyLog.DoLogs(fmt.Sprintf("获取redis队列数据协程-common缺少必要参数：command-%v;", task[1]), "e", "task", nil)
+				s.MyLog.DoLogs(fmt.Sprintf("获取redis队列数据协程-command缺少必要参数：command-%v;", task[1]), "e", "task", nil)
 				continue
 			}
+			// fmt.Printf("获取redis队列数据协程-command参数：command-%v;\n", taskCommand)
 			s.WorkerChan[taskCommand.TaskKey] <- taskCommand
 		}
 		if s.SysRun == "running" {
